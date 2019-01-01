@@ -2,7 +2,7 @@ import Foundation
 import os.signpost
 
 extension OSLog {
-    @available(OSX 10.12, *)
+    @available(iOS 12, *, OSX 10.12, *)
     /// Returns an instance of OSLog with the default xcodeproj subsystem.
     ///
     /// - Parameter category: Category the OSLog should be initialized with.
