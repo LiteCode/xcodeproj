@@ -22,7 +22,7 @@ class OSLogger {
             return
         }
 
-        if #available(iOS 12, *) {
+        if #available(iOS 12, *, OSX 10.14, *) {
             let log: OSLog = OSLog.xcodeproj(category: category)
             let signpostID = OSSignpostID(log: log)
             os_signpost(.begin,
@@ -35,7 +35,7 @@ class OSLogger {
 
         try closure()
 
-        if #available(iOS 12, *) {
+        if #available(iOS 12, *, OSX 10.14, *) {
             let log: OSLog = OSLog.xcodeproj(category: category)
             let signpostID = OSSignpostID(log: log)
             os_signpost(.end,
@@ -61,7 +61,7 @@ class OSLogger {
             return try closure()
         }
 
-        if #available(iOS 12, *) {
+        if #available(iOS 12, *, OSX 10.14, *) {
             let log: OSLog = OSLog.xcodeproj(category: category)
             let signpostID = OSSignpostID(log: log)
             os_signpost(.begin,
@@ -74,7 +74,7 @@ class OSLogger {
 
         let result = try closure()
 
-        if #available(iOS 12, *) {
+        if #available(iOS 12, *, OSX 10.14, *) {
             let log: OSLog = OSLog.xcodeproj(category: category)
             let signpostID = OSSignpostID(log: log)
             os_signpost(.end,
