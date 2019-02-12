@@ -4,7 +4,7 @@ import Foundation
 class PBXObjectReferenceRepository {
     /// References.
     var references: [String: PBXObjectReference] = [:]
-
+    
     /// Returns and creates if it doesn't exist an object reference.
     ///
     /// - Parameters:
@@ -22,14 +22,14 @@ class PBXObjectReferenceRepository {
 }
 
 /// Context used when the project is being decoded.
-class ProjectDecodingContext {
+public class ProjectDecodingContext {
     /// Object reference repository.
     let objectReferenceRepository: PBXObjectReferenceRepository
-
+    
     /// Objects.
     let objects: PBXObjects
-
-    init() {
+    
+    public init() {
         objectReferenceRepository = PBXObjectReferenceRepository()
         objects = PBXObjects(objects: [])
     }
@@ -43,18 +43,18 @@ extension CodingUserInfoKey {
 }
 
 /// Xcodeproj JSON decoder.
-class XcodeprojJSONDecoder: JSONDecoder {
+public class XcodeprojJSONDecoder: JSONDecoder {
     /// Default init.
-    init(context: ProjectDecodingContext = ProjectDecodingContext()) {
+    public init(context: ProjectDecodingContext = ProjectDecodingContext()) {
         super.init()
         userInfo = [.context: context]
     }
 }
 
 /// Xcodeproj property list decoder.
-class XcodeprojPropertyListDecoder: PropertyListDecoder {
+public class XcodeprojPropertyListDecoder: PropertyListDecoder {
     /// Default init.
-    init(context: ProjectDecodingContext = ProjectDecodingContext()) {
+    public init(context: ProjectDecodingContext = ProjectDecodingContext()) {
         super.init()
         userInfo = [.context: context]
     }
