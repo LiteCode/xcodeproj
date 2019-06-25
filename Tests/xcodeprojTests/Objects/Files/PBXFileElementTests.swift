@@ -1,7 +1,7 @@
 import Foundation
 import PathKit
-@testable import xcodeproj
 import XCTest
+@testable import XcodeProj
 
 final class PBXFileElementTests: XCTestCase {
     var subject: PBXFileElement!
@@ -36,7 +36,7 @@ final class PBXFileElementTests: XCTestCase {
         XCTAssertEqual(subject, another)
     }
 
-    func test_fullPath() throws {
+    func test_fullPath_with_parent() throws {
         let sourceRoot = Path("/")
         let fileref = PBXFileReference(sourceTree: .group,
                                        fileEncoding: 1,
@@ -47,12 +47,50 @@ final class PBXFileElementTests: XCTestCase {
                              sourceTree: .group,
                              name: "/to/be/ignored")
 
-        let objects = PBXObjects(objects: [fileref, group])
+        let mainGroup = PBXGroup(children: [group],
+                                 sourceTree: .group,
+                                 name: "/to/be/ignored")
+
+        let project = PBXProject(name: "ProjectName",
+                                 buildConfigurationList: XCConfigurationList(),
+                                 compatibilityVersion: "0",
+                                 mainGroup: mainGroup)
+
+        let objects = PBXObjects(objects: [project, mainGroup, fileref, group])
         fileref.reference.objects = objects
         group.reference.objects = objects
 
         let fullPath = try fileref.fullPath(sourceRoot: sourceRoot)
         XCTAssertEqual(fullPath?.string, "/a/path")
+        XCTAssertNotNil(group.children.first?.parent)
+    }
+
+    func test_fullPath_without_parent() throws {
+        let sourceRoot = Path("/")
+        let fileref = PBXFileReference(sourceTree: .group,
+                                       fileEncoding: 1,
+                                       explicitFileType: "sourcecode.swift",
+                                       lastKnownFileType: nil,
+                                       path: "/a/path")
+        let group = PBXGroup(children: [fileref],
+                             sourceTree: .group,
+                             name: "/to/be/ignored",
+                             path: "groupPath")
+
+        let objects = PBXObjects(objects: [fileref, group])
+        fileref.reference.objects = objects
+        group.reference.objects = objects
+        // Remove parent for fallback test
+        fileref.parent = nil
+
+        XCTAssertThrowsError(try fileref.fullPath(sourceRoot: sourceRoot)) { error in
+            if case let PBXProjError.invalidGroupPath(sourceRoot, elementPath) = error {
+                XCTAssertEqual(sourceRoot, "/")
+                XCTAssertEqual(elementPath, "groupPath")
+            } else {
+                XCTAssert(false, "fullPath should fails with PBXProjError.invalidGroupPath instaed of: \(error)")
+            }
+        }
     }
 
     func test_fullPath_with_nested_groups() throws {
@@ -68,7 +106,12 @@ final class PBXFileElementTests: XCTestCase {
         let rootGroup = PBXGroup(children: [nestedGroup],
                                  sourceTree: .group)
 
-        let objects = PBXObjects(objects: [fileref, nestedGroup, rootGroup])
+        let project = PBXProject(name: "ProjectName",
+                                 buildConfigurationList: XCConfigurationList(),
+                                 compatibilityVersion: "0",
+                                 mainGroup: rootGroup)
+
+        let objects = PBXObjects(objects: [fileref, nestedGroup, rootGroup, project])
         fileref.reference.objects = objects
         nestedGroup.reference.objects = objects
 
@@ -85,19 +128,19 @@ final class PBXFileElementTests: XCTestCase {
             "wrapsLines": "1",
         ]
     }
-    
+
     func test_plistKeyAndValue_returns_dictionary_value() throws {
         let foo = PBXFileElement()
         let proj = PBXProj()
         let reference = ""
         if case .dictionary = try foo.plistKeyAndValue(proj: proj, reference: reference).value {
-            //noop we’re good!
+            // noop we’re good!
         } else {
             XCTFail("""
-                The implementation of PBXFileElement.plistKeyAndValue has changed,
-                which will break PBXReferenceProxy’s overriden implementation.
-                This must be fixed!
-                """)
+            The implementation of PBXFileElement.plistKeyAndValue has changed,
+            which will break PBXReferenceProxy’s overriden implementation.
+            This must be fixed!
+            """)
         }
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
-@testable import xcodeproj
 import XCTest
+@testable import XcodeProj
 
 class ObjectReferenceTests: XCTestCase {
     let xcodeReferenceGenerator = ReferenceGenerator(outputSettings: PBXOutputSettings(projReferenceFormat: .xcode))
@@ -101,12 +101,12 @@ class ObjectReferenceTests: XCTestCase {
         let reference = PBXObjectReference()
         XCTAssertTrue(reference.value.hasPrefix("TEMP_"))
         reference.fix("a")
-        XCTAssertTrue(reference.value.unicodeScalars.filter { CharacterSet.alphanumerics.inverted.contains($0) }.count == 0)
+        XCTAssertTrue(reference.value.unicodeScalars.filter { CharacterSet.alphanumerics.inverted.contains($0) }.isEmpty)
         reference.invalidate()
         XCTAssertTrue(reference.value.hasPrefix("TEMP_"))
     }
 
-    /// MARK: - XCode style generation
+    // MARK: - XCode style generation
 
     func test_reference_generation_xcode_isDeterministic() {
         let object = PBXFileReference()
@@ -117,19 +117,19 @@ class ObjectReferenceTests: XCTestCase {
         XCTAssertEqual(object.reference.value, object2.reference.value)
     }
 
-    func test_reference_generation_xcode_nonTempHas32Characters() {
+    func test_reference_generation_xcode_nonTempHas24Characters() {
         let object = PBXFileReference()
         xcodeReferenceGenerator.fixReference(for: object, identifiers: ["a"])
-        XCTAssertTrue(object.reference.value.count == 32)
+        XCTAssertTrue(object.reference.value.count == 24)
     }
 
-    func test_reference_generation_xcode_duplicatesHave32Characters() {
+    func test_reference_generation_xcode_duplicatesHave24Characters() {
         let object = PBXFileReference()
         let object2 = PBXFileReference()
         xcodeReferenceGenerator.fixReference(for: object, identifiers: ["a"])
         xcodeReferenceGenerator.fixReference(for: object2, identifiers: ["a"])
-        XCTAssertTrue(object.reference.value.count == 32)
-        XCTAssertTrue(object2.reference.value.count == 32)
+        XCTAssertTrue(object.reference.value.count == 24)
+        XCTAssertTrue(object2.reference.value.count == 24)
     }
 
     func test_reference_generation_xcode_duplicatesHaveOnlyAlphaNumerics() {
@@ -137,8 +137,8 @@ class ObjectReferenceTests: XCTestCase {
         let object2 = PBXFileReference()
         xcodeReferenceGenerator.fixReference(for: object, identifiers: ["a"])
         xcodeReferenceGenerator.fixReference(for: object2, identifiers: ["a"])
-        XCTAssertTrue(object.reference.value.unicodeScalars.filter { CharacterSet.alphanumerics.inverted.contains($0) }.count == 0)
-        XCTAssertTrue(object2.reference.value.unicodeScalars.filter { CharacterSet.alphanumerics.inverted.contains($0) }.count == 0)
+        XCTAssertTrue(object.reference.value.unicodeScalars.filter { CharacterSet.alphanumerics.inverted.contains($0) }.isEmpty)
+        XCTAssertTrue(object2.reference.value.unicodeScalars.filter { CharacterSet.alphanumerics.inverted.contains($0) }.isEmpty)
     }
 
     // MARK: - Prefix format generation

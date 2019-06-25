@@ -1,4 +1,3 @@
-
 import Foundation
 
 /// Code for controlling sorting of files in an pbxproj file.
@@ -42,6 +41,15 @@ public enum PBXFileOrder {
         switch self {
         case .byFilename:
             return sortUsingNames(lhs.1, rhs.1)
+        default:
+            return lhs.0 < rhs.0
+        }
+    }
+
+    internal func sort(lhs: (PBXObjectReference, PBXBuildPhaseFile), rhs: (PBXObjectReference, PBXBuildPhaseFile)) -> Bool {
+        switch self {
+        case .byFilename:
+            return sortUsingNames(lhs.1.buildFile, rhs.1.buildFile)
         default:
             return lhs.0 < rhs.0
         }
@@ -126,7 +134,7 @@ public enum PBXReferenceFormat {
     /// The prefix characters identify the type of reference generated (e.g. BP for Build Phase).
     /// The suffix number is only added for uniqueness if clashes occur.
     case withPrefixAndSuffix
-    /// Standard 32 char format that XCode generates.
+    /// Standard 24 char format that XCode generates.
     /// Note: Not guaranteed to be the same as XCode generates - only the format is the same.
     case xcode
 }

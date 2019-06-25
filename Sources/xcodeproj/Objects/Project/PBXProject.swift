@@ -71,12 +71,12 @@ public final class PBXProject: PBXObject {
     public var projects: [[String: PBXFileElement]] {
         set {
             projectReferences = newValue.map { project in
-                project.mapValues({ $0.reference })
+                project.mapValues { $0.reference }
             }
         }
         get {
             return projectReferences.map { project in
-                project.mapValues({ $0.getObject()! })
+                project.mapValues { $0.getObject()! }
             }
         }
     }
@@ -124,6 +124,19 @@ public final class PBXProject: PBXObject {
         }
     }
 
+    /// Package references.
+    var packageReferences: [PBXObjectReference]?
+
+    /// Swift packages.
+    public var packages: [XCRemoteSwiftPackageReference] {
+        set {
+            packageReferences = newValue.references()
+        }
+        get {
+            return packageReferences?.objects() ?? []
+        }
+    }
+
     /// Sets the attributes for the given target.
     ///
     /// - Parameters:
@@ -151,6 +164,32 @@ public final class PBXProject: PBXObject {
     /// - Returns: target attributes.
     public func attributes(for target: PBXTarget) -> [String: Any]? {
         return targetAttributeReferences[target.reference]
+    }
+
+    public func addSwiftPackage(repositoryURL: String,
+                                productName: String,
+                                versionRequirement: XCRemoteSwiftPackageReference.VersionRequirement,
+                                target: PBXTarget? = nil) -> XCRemoteSwiftPackageReference {
+        let objects = try! self.objects()
+
+        // Reference
+        let reference = XCRemoteSwiftPackageReference(repositoryURL: repositoryURL, versionRequirement: versionRequirement)
+        objects.add(object: reference)
+        packages.append(reference)
+
+        // Product
+        let productDependency = XCSwiftPackageProductDependency(productName: productName, package: reference)
+        objects.add(object: productDependency)
+        target?.packageProductDependencies.append(productDependency)
+
+        // Build file
+        let buildFile = PBXBuildFile(product: productDependency)
+        objects.add(object: buildFile)
+
+        // Link the product
+        try? target?.sourcesBuildPhase()?.files?.append(buildFile)
+
+        return reference
     }
 
     // MARK: - Init
@@ -182,6 +221,7 @@ public final class PBXProject: PBXObject {
                 projects: [[String: PBXFileElement]] = [],
                 projectRoots: [String] = [],
                 targets: [PBXTarget] = [],
+                packages: [XCRemoteSwiftPackageReference] = [],
                 attributes: [String: Any] = [:],
                 targetAttributes: [PBXTarget: [String: Any]] = [:]) {
         self.name = name
@@ -193,9 +233,10 @@ public final class PBXProject: PBXObject {
         self.knownRegions = knownRegions
         productsGroupReference = productsGroup?.reference
         self.projectDirPath = projectDirPath
-        projectReferences = projects.map({ project in project.mapValues({ $0.reference }) })
+        projectReferences = projects.map { project in project.mapValues { $0.reference } }
         self.projectRoots = projectRoots
         targetReferences = targets.references()
+        packageReferences = packages.references()
         self.attributes = attributes
         targetAttributeReferences = [:]
         super.init()
@@ -219,6 +260,7 @@ public final class PBXProject: PBXObject {
         case projectRoots
         case targets
         case attributes
+        case packageReferences
     }
 
     public required init(from decoder: Decoder) throws {
@@ -231,7 +273,7 @@ public final class PBXProject: PBXObject {
         compatibilityVersion = try container.decode(.compatibilityVersion)
         developmentRegion = try container.decodeIfPresent(.developmentRegion)
         let hasScannedForEncodingsString: String? = try container.decodeIfPresent(.hasScannedForEncodings)
-        hasScannedForEncodings = hasScannedForEncodingsString.flatMap({ Int($0) }) ?? 0
+        hasScannedForEncodings = hasScannedForEncodingsString.flatMap { Int($0) } ?? 0
         knownRegions = (try container.decodeIfPresent(.knownRegions)) ?? []
         let mainGroupReference: String = try container.decode(.mainGroup)
         self.mainGroupReference = referenceRepository.getOrCreate(reference: mainGroupReference, objects: objects)
@@ -242,9 +284,9 @@ public final class PBXProject: PBXObject {
         }
         projectDirPath = try container.decodeIfPresent(.projectDirPath) ?? ""
         let projectReferences: [[String: String]] = (try container.decodeIfPresent(.projectReferences)) ?? []
-        self.projectReferences = projectReferences.map({ references in
-            references.mapValues({ referenceRepository.getOrCreate(reference: $0, objects: objects) })
-        })
+        self.projectReferences = projectReferences.map { references in
+            references.mapValues { referenceRepository.getOrCreate(reference: $0, objects: objects) }
+        }
         if let projectRoots: [String] = try container.decodeIfPresent(.projectRoots) {
             self.projectRoots = projectRoots
         } else if let projectRoot: String = try container.decodeIfPresent(.projectRoot) {
@@ -253,7 +295,10 @@ public final class PBXProject: PBXObject {
             projectRoots = []
         }
         let targetReferences: [String] = (try container.decodeIfPresent(.targets)) ?? []
-        self.targetReferences = targetReferences.map({ referenceRepository.getOrCreate(reference: $0, objects: objects) })
+        self.targetReferences = targetReferences.map { referenceRepository.getOrCreate(reference: $0, objects: objects) }
+
+        let packageRefeferenceStrings: [String] = try container.decodeIfPresent(.packageReferences) ?? []
+        packageReferences = packageRefeferenceStrings.map { referenceRepository.getOrCreate(reference: $0, objects: objects) }
 
         var attributes = (try container.decodeIfPresent([String: Any].self, forKey: .attributes) ?? [:])
         var targetAttributeReferences: [PBXObjectReference: [String: Any]] = [:]
@@ -271,6 +316,7 @@ public final class PBXProject: PBXObject {
 // MARK: - PlistSerializable
 
 extension PBXProject: PlistSerializable {
+    // swiftlint:disable:next function_body_length
     func plistKeyAndValue(proj: PBXProj, reference: String) throws -> (key: CommentedString, value: PlistValue) {
         var dictionary: [CommentedString: PlistValue] = [:]
         dictionary["isa"] = .string(CommentedString(PBXProject.isa))
@@ -310,6 +356,12 @@ extension PBXProject: PlistSerializable {
                 return .string(CommentedString(targetReference.value, comment: target?.name))
         })
 
+        if !packages.isEmpty {
+            dictionary["packageReferences"] = PlistValue.array(packages.map {
+                .string(CommentedString($0.reference.value, comment: "XCRemoteSwiftPackageReference \"\($0.name ?? "")\""))
+            })
+        }
+
         var plistAttributes: [String: Any] = attributes
         if !targetAttributeReferences.isEmpty {
             // merge target attributes
@@ -329,7 +381,7 @@ extension PBXProject: PlistSerializable {
     }
 
     private func projectReferencesPlistValue(proj _: PBXProj) throws -> PlistValue? {
-        guard projectReferences.count > 0 else {
+        guard !projectReferences.isEmpty else {
             return nil
         }
         return .array(projectReferences.compactMap { reference in

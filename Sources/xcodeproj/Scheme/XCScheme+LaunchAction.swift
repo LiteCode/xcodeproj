@@ -8,6 +8,20 @@ extension XCScheme {
         public enum Style: String {
             case auto = "0"
             case wait = "1"
+            case custom = "2"
+        }
+
+        public enum GPUFrameCaptureMode: String {
+            case autoEnabled = "0"
+            case metal = "1"
+            case openGL = "2"
+            case disabled = "3"
+        }
+
+        public enum GPUValidationMode: String {
+            case enabled = "0"
+            case disabled = "1"
+            case extended = "2"
         }
 
         // MARK: - Static
@@ -15,10 +29,12 @@ extension XCScheme {
         private static let defaultBuildConfiguration = "Debug"
         public static let defaultDebugServiceExtension = "internal"
         private static let defaultLaunchStyle = Style.auto
+        public static let defaultGPUFrameCaptureMode = GPUFrameCaptureMode.autoEnabled
+        public static let defaultGPUValidationMode = GPUValidationMode.enabled
 
         // MARK: - Attributes
 
-        public var buildableProductRunnable: BuildableProductRunnable?
+        public var runnable: Runnable?
         public var macroExpansion: BuildableReference?
         public var selectedDebuggerIdentifier: String
         public var selectedLauncherIdentifier: String
@@ -30,6 +46,8 @@ extension XCScheme {
         public var debugServiceExtension: String
         public var allowLocationSimulation: Bool
         public var locationScenarioReference: LocationScenarioReference?
+        public var enableGPUFrameCaptureMode: GPUFrameCaptureMode
+        public var enableGPUValidationMode: GPUValidationMode
         public var enableAddressSanitizer: Bool
         public var enableASanStackUseAfterReturn: Bool
         public var enableThreadSanitizer: Bool
@@ -44,10 +62,12 @@ extension XCScheme {
         public var language: String?
         public var region: String?
         public var launchAutomaticallySubstyle: String?
+        // To enable the option in Xcode: defaults write com.apple.dt.Xcode IDEDebuggerFeatureSetting 12
+        public var customLaunchCommand: String?
 
         // MARK: - Init
 
-        public init(buildableProductRunnable: BuildableProductRunnable?,
+        public init(runnable: Runnable?,
                     buildConfiguration: String,
                     preActions: [ExecutionAction] = [],
                     postActions: [ExecutionAction] = [],
@@ -61,6 +81,8 @@ extension XCScheme {
                     debugServiceExtension: String = LaunchAction.defaultDebugServiceExtension,
                     allowLocationSimulation: Bool = true,
                     locationScenarioReference: LocationScenarioReference? = nil,
+                    enableGPUFrameCaptureMode: GPUFrameCaptureMode = LaunchAction.defaultGPUFrameCaptureMode,
+                    enableGPUValidationMode: GPUValidationMode = LaunchAction.defaultGPUValidationMode,
                     enableAddressSanitizer: Bool = false,
                     enableASanStackUseAfterReturn: Bool = false,
                     enableThreadSanitizer: Bool = false,
@@ -74,8 +96,9 @@ extension XCScheme {
                     environmentVariables: [EnvironmentVariable]? = nil,
                     language: String? = nil,
                     region: String? = nil,
-                    launchAutomaticallySubstyle: String? = nil) {
-            self.buildableProductRunnable = buildableProductRunnable
+                    launchAutomaticallySubstyle: String? = nil,
+                    customLaunchCommand: String? = nil) {
+            self.runnable = runnable
             self.macroExpansion = macroExpansion
             self.buildConfiguration = buildConfiguration
             self.launchStyle = launchStyle
@@ -87,6 +110,8 @@ extension XCScheme {
             self.debugServiceExtension = debugServiceExtension
             self.allowLocationSimulation = allowLocationSimulation
             self.locationScenarioReference = locationScenarioReference
+            self.enableGPUFrameCaptureMode = enableGPUFrameCaptureMode
+            self.enableGPUValidationMode = enableGPUValidationMode
             self.enableAddressSanitizer = enableAddressSanitizer
             self.enableASanStackUseAfterReturn = enableASanStackUseAfterReturn
             self.enableThreadSanitizer = enableThreadSanitizer
@@ -101,9 +126,11 @@ extension XCScheme {
             self.language = language
             self.region = region
             self.launchAutomaticallySubstyle = launchAutomaticallySubstyle
+            self.customLaunchCommand = customLaunchCommand
             super.init(preActions, postActions)
         }
 
+        // swiftlint:disable:next function_body_length
         override init(element: AEXMLElement) throws {
             buildConfiguration = element.attributes["buildConfiguration"] ?? LaunchAction.defaultBuildConfiguration
             selectedDebuggerIdentifier = element.attributes["selectedDebuggerIdentifier"] ?? XCScheme.defaultDebugger
@@ -115,10 +142,15 @@ extension XCScheme {
             debugServiceExtension = element.attributes["debugServiceExtension"] ?? LaunchAction.defaultDebugServiceExtension
             allowLocationSimulation = element.attributes["allowLocationSimulation"].map { $0 == "YES" } ?? true
 
+            // Runnable
             let buildableProductRunnableElement = element["BuildableProductRunnable"]
+            let remoteRunnableElement = element["RemoteRunnable"]
             if buildableProductRunnableElement.error == nil {
-                buildableProductRunnable = try BuildableProductRunnable(element: buildableProductRunnableElement)
+                runnable = try BuildableProductRunnable(element: buildableProductRunnableElement)
+            } else if remoteRunnableElement.error == nil {
+                runnable = try RemoteRunnable(element: remoteRunnableElement)
             }
+
             let buildableReferenceElement = element["MacroExpansion"]["BuildableReference"]
             if buildableReferenceElement.error == nil {
                 macroExpansion = try BuildableReference(element: buildableReferenceElement)
@@ -130,6 +162,10 @@ extension XCScheme {
                 locationScenarioReference = nil
             }
 
+            enableGPUFrameCaptureMode = element.attributes["enableGPUFrameCaptureMode"]
+                .flatMap { GPUFrameCaptureMode(rawValue: $0) } ?? LaunchAction.defaultGPUFrameCaptureMode
+            enableGPUValidationMode = element.attributes["enableGPUValidationMode"]
+                .flatMap { GPUValidationMode(rawValue: $0) } ?? LaunchAction.defaultGPUValidationMode
             enableAddressSanitizer = element.attributes["enableAddressSanitizer"] == "YES"
             enableASanStackUseAfterReturn = element.attributes["enableASanStackUseAfterReturn"] == "YES"
             enableThreadSanitizer = element.attributes["enableThreadSanitizer"] == "YES"
@@ -156,6 +192,8 @@ extension XCScheme {
             language = element.attributes["language"]
             region = element.attributes["region"]
             launchAutomaticallySubstyle = element.attributes["launchAutomaticallySubstyle"]
+            customLaunchCommand = element.attributes["customLaunchCommand"]
+
             try super.init(element: element)
         }
 
@@ -174,6 +212,12 @@ extension XCScheme {
                 "allowLocationSimulation": allowLocationSimulation.xmlString,
             ]
 
+            if enableGPUFrameCaptureMode != LaunchAction.defaultGPUFrameCaptureMode {
+                attributes["enableGPUFrameCaptureMode"] = enableGPUFrameCaptureMode.rawValue
+            }
+            if enableGPUValidationMode != LaunchAction.defaultGPUValidationMode {
+                attributes["enableGPUValidationMode"] = enableGPUValidationMode.rawValue
+            }
             if enableAddressSanitizer {
                 attributes["enableAddressSanitizer"] = enableAddressSanitizer.xmlString
             }
@@ -207,8 +251,8 @@ extension XCScheme {
                                        value: nil,
                                        attributes: xmlAttributes)
             super.writeXML(parent: element)
-            if let buildableProductRunnable = buildableProductRunnable {
-                element.addChild(buildableProductRunnable.xmlElement())
+            if let runnable = runnable {
+                element.addChild(runnable.xmlElement())
             }
 
             if let locationScenarioReference = locationScenarioReference {
@@ -239,6 +283,10 @@ extension XCScheme {
                 element.attributes["launchAutomaticallySubstyle"] = launchAutomaticallySubstyle
             }
 
+            if let customLaunchCommand = customLaunchCommand {
+                element.attributes["customLaunchCommand"] = customLaunchCommand
+            }
+
             let additionalOptionsElement = element.addChild(AEXMLElement(name: "AdditionalOptions"))
             additionalOptions.forEach { additionalOption in
                 additionalOptionsElement.addChild(additionalOption.xmlElement())
@@ -251,7 +299,7 @@ extension XCScheme {
         override func isEqual(to: Any?) -> Bool {
             guard let rhs = to as? LaunchAction else { return false }
             return super.isEqual(to: to) &&
-                buildableProductRunnable == rhs.buildableProductRunnable &&
+                runnable == rhs.runnable &&
                 macroExpansion == rhs.macroExpansion &&
                 selectedDebuggerIdentifier == rhs.selectedDebuggerIdentifier &&
                 selectedLauncherIdentifier == rhs.selectedLauncherIdentifier &&
@@ -263,6 +311,8 @@ extension XCScheme {
                 debugServiceExtension == rhs.debugServiceExtension &&
                 allowLocationSimulation == rhs.allowLocationSimulation &&
                 locationScenarioReference == rhs.locationScenarioReference &&
+                enableGPUFrameCaptureMode == rhs.enableGPUFrameCaptureMode &&
+                enableGPUValidationMode == rhs.enableGPUValidationMode &&
                 enableAddressSanitizer == rhs.enableAddressSanitizer &&
                 enableASanStackUseAfterReturn == rhs.enableASanStackUseAfterReturn &&
                 enableThreadSanitizer == rhs.enableThreadSanitizer &&
@@ -276,7 +326,8 @@ extension XCScheme {
                 environmentVariables == rhs.environmentVariables &&
                 language == rhs.language &&
                 region == rhs.region &&
-                launchAutomaticallySubstyle == rhs.launchAutomaticallySubstyle
+                launchAutomaticallySubstyle == rhs.launchAutomaticallySubstyle &&
+                customLaunchCommand == rhs.customLaunchCommand
         }
     }
 }

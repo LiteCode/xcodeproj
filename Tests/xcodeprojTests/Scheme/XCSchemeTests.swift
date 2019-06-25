@@ -1,16 +1,12 @@
 import Foundation
 import PathKit
-@testable import xcodeproj
 import XCTest
+@testable import XcodeProj
 
 final class XCSchemeIntegrationTests: XCTestCase {
-    func test_read_iosScheme() {
-        let subject = try? XCScheme(path: iosSchemePath)
-
-        XCTAssertNotNil(subject)
-        if let subject = subject {
-            assert(scheme: subject)
-        }
+    func test_read_iosScheme() throws {
+        let subject = try XCScheme(path: iosSchemePath)
+        assert(scheme: subject)
     }
 
     func test_write_iosScheme() {
@@ -76,7 +72,7 @@ final class XCSchemeIntegrationTests: XCTestCase {
     // MARK: - Private
 
     private func assert(scheme: XCScheme) {
-        XCTAssertEqual(scheme.version, "1.7")
+        XCTAssertEqual(scheme.version, "2.0")
         XCTAssertEqual(scheme.lastUpgradeVersion, "0830")
         // Build action
         XCTAssertTrue(scheme.buildAction?.parallelizeBuild == true)
@@ -137,7 +133,7 @@ final class XCSchemeIntegrationTests: XCTestCase {
         XCTAssertFalse(testEnvironmentVariables[0].enabled)
 
         let testCLIArgs = XCTAssertNotNilAndUnwrap(scheme.testAction?.commandlineArguments)
-        XCTAssertTrue(testCLIArgs.arguments.count > 0)
+        XCTAssertTrue(!testCLIArgs.arguments.isEmpty)
         XCTAssertEqual(testCLIArgs.arguments[0].name, "MyTestArgument")
         XCTAssertTrue(testCLIArgs.arguments[0].enabled)
 
@@ -174,7 +170,7 @@ final class XCSchemeIntegrationTests: XCTestCase {
         XCTAssertTrue(profileEnvironmentVariables[0].enabled)
 
         let profileCLIArgs = XCTAssertNotNilAndUnwrap(scheme.profileAction?.commandlineArguments)
-        XCTAssertTrue(profileCLIArgs.arguments.count > 0)
+        XCTAssertTrue(!profileCLIArgs.arguments.isEmpty)
         XCTAssertEqual(profileCLIArgs.arguments[0].name, "MyProfileArgument")
         XCTAssertFalse(profileCLIArgs.arguments[0].enabled)
 
@@ -182,18 +178,18 @@ final class XCSchemeIntegrationTests: XCTestCase {
         XCTAssertEqual(scheme.launchAction?.buildConfiguration, "Debug")
         XCTAssertEqual(scheme.launchAction?.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(scheme.launchAction?.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(scheme.launchAction?.launchStyle, .auto)
+        XCTAssertEqual(scheme.launchAction?.launchStyle, .custom)
         XCTAssertEqual(scheme.launchAction?.useCustomWorkingDirectory, false)
         XCTAssertEqual(scheme.launchAction?.ignoresPersistentStateOnLaunch, false)
         XCTAssertEqual(scheme.launchAction?.debugDocumentVersioning, true)
         XCTAssertEqual(scheme.launchAction?.debugServiceExtension, "internal")
         XCTAssertEqual(scheme.launchAction?.allowLocationSimulation, true)
-        XCTAssertEqual(scheme.launchAction?.buildableProductRunnable?.runnableDebuggingMode, "0")
-        XCTAssertEqual(scheme.launchAction?.buildableProductRunnable?.buildableReference.buildableIdentifier, "primary")
-        XCTAssertEqual(scheme.launchAction?.buildableProductRunnable?.buildableReference.blueprintIdentifier, "23766C111EAA3484007A9026")
-        XCTAssertEqual(scheme.launchAction?.buildableProductRunnable?.buildableReference.buildableName, "iOS.app")
-        XCTAssertEqual(scheme.launchAction?.buildableProductRunnable?.buildableReference.blueprintName, "iOS")
-        XCTAssertEqual(scheme.launchAction?.buildableProductRunnable?.buildableReference.referencedContainer, "container:Project.xcodeproj")
+        XCTAssertEqual(scheme.launchAction?.runnable?.runnableDebuggingMode, "0")
+        XCTAssertEqual(scheme.launchAction?.runnable?.buildableReference.buildableIdentifier, "primary")
+        XCTAssertEqual(scheme.launchAction?.runnable?.buildableReference.blueprintIdentifier, "23766C111EAA3484007A9026")
+        XCTAssertEqual(scheme.launchAction?.runnable?.buildableReference.buildableName, "iOS.app")
+        XCTAssertEqual(scheme.launchAction?.runnable?.buildableReference.blueprintName, "iOS")
+        XCTAssertEqual(scheme.launchAction?.runnable?.buildableReference.referencedContainer, "container:Project.xcodeproj")
         XCTAssertEqual(scheme.launchAction?.locationScenarioReference?.identifier, "com.apple.dt.IDEFoundation.CurrentLocationScenarioIdentifier")
         XCTAssertEqual(scheme.launchAction?.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(scheme.launchAction?.preActions.first?.title, "")
@@ -227,7 +223,7 @@ final class XCSchemeIntegrationTests: XCTestCase {
         XCTAssertTrue(launchEnvironmentVariables[0].enabled)
 
         let launchCLIArgs = XCTAssertNotNilAndUnwrap(scheme.launchAction?.commandlineArguments)
-        XCTAssertTrue(launchCLIArgs.arguments.count > 0)
+        XCTAssertTrue(!launchCLIArgs.arguments.isEmpty)
         XCTAssertEqual(launchCLIArgs.arguments[0].name, "MyLaunchArgument")
         XCTAssertTrue(launchCLIArgs.arguments[0].enabled)
     }
@@ -267,7 +263,7 @@ final class XCSchemeIntegrationTests: XCTestCase {
         XCTAssertNil(scheme.testAction?.environmentVariables)
 
         // Launch action
-        XCTAssertNil(scheme.launchAction?.buildableProductRunnable)
+        XCTAssertNil(scheme.launchAction?.runnable)
         XCTAssertEqual(scheme.launchAction?.selectedDebuggerIdentifier, XCScheme.defaultDebugger)
         XCTAssertEqual(scheme.launchAction?.selectedLauncherIdentifier, XCScheme.defaultLauncher)
         XCTAssertEqual(scheme.launchAction?.buildConfiguration, "Debug")

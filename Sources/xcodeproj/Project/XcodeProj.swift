@@ -21,26 +21,30 @@ public final class XcodeProj: Equatable {
         var workspace: XCWorkspace!
         var sharedData: XCSharedData?
 
-        try OSLogger.instance.log(name: "Write workspace", path.string) {
-            if !path.exists { throw XCodeProjError.notFound(path: path) }
-            let pbxprojPaths = path.glob("*.pbxproj")
-            if pbxprojPaths.count == 0 {
-                throw XCodeProjError.pbxprojNotFound(path: path)
-            }
-            let pbxProjData = try Data(contentsOf: pbxprojPaths.first!.url)
-            let context = ProjectDecodingContext()
-            let plistDecoder = XcodeprojPropertyListDecoder(context: context)
-            pbxproj = try plistDecoder.decode(PBXProj.self, from: pbxProjData)
-            try pbxproj.updateProjectName(path: pbxprojPaths.first!)
-            let xcworkspacePaths = path.glob("*.xcworkspace")
-            if xcworkspacePaths.count == 0 {
-                workspace = XCWorkspace()
-            } else {
-                workspace = try XCWorkspace(path: xcworkspacePaths.first!)
-            }
-            let sharedDataPath = path + "xcshareddata"
-            sharedData = try? XCSharedData(path: sharedDataPath)
+        if !path.exists { throw XCodeProjError.notFound(path: path) }
+        let pbxprojPaths = path.glob("*.pbxproj")
+        if pbxprojPaths.isEmpty {
+            throw XCodeProjError.pbxprojNotFound(path: path)
         }
+        let pbxprojPath = pbxprojPaths.first!
+        let (pbxProjData, pbxProjDictionary) = try XcodeProj.readPBXProj(path: pbxprojPath)
+        let context = ProjectDecodingContext(
+            pbxProjValueReader: { key in
+                pbxProjDictionary[key]
+            }
+        )
+
+        let plistDecoder = XcodeprojPropertyListDecoder(context: context)
+        pbxproj = try plistDecoder.decode(PBXProj.self, from: pbxProjData)
+        try pbxproj.updateProjectName(path: pbxprojPaths.first!)
+        let xcworkspacePaths = path.glob("*.xcworkspace")
+        if xcworkspacePaths.isEmpty {
+            workspace = XCWorkspace()
+        } else {
+            workspace = try XCWorkspace(path: xcworkspacePaths.first!)
+        }
+        let sharedDataPath = path + "xcshareddata"
+        sharedData = try? XCSharedData(path: sharedDataPath)
 
         self.pbxproj = pbxproj
         self.workspace = workspace
@@ -69,6 +73,21 @@ public final class XcodeProj: Equatable {
             lhs.pbxproj == rhs.pbxproj &&
             lhs.sharedData == rhs.sharedData
     }
+
+    // MARK: - Private
+
+    private static func readPBXProj(path: Path) throws -> (Data, [String: Any]) {
+        let plistXML = try Data(contentsOf: path.url)
+        var propertyListFormat = PropertyListSerialization.PropertyListFormat.xml
+        let serialized = try PropertyListSerialization.propertyList(
+            from: plistXML,
+            options: .mutableContainersAndLeaves,
+            format: &propertyListFormat
+        )
+        // swiftlint:disable:next force_cast
+        let pbxProjDictionary = serialized as! [String: Any]
+        return (plistXML, pbxProjDictionary)
+    }
 }
 
 // MARK: - <Writable>
@@ -91,18 +110,10 @@ extension XcodeProj: Writable {
     ///   If false will throw error if project already exists at the given path.
     public func write(path: Path, override: Bool = true, outputSettings: PBXOutputSettings) throws {
         try path.mkpath()
-        try OSLogger.instance.log(name: "Write workspace", path.string) {
-            try writeWorkspace(path: path, override: override)
-        }
-        try OSLogger.instance.log(name: "Write pbxproj", path.string) {
-            try writePBXProj(path: path, override: override, outputSettings: outputSettings)
-        }
-        try OSLogger.instance.log(name: "Write schemes", path.string) {
-            try writeSchemes(path: path, override: override)
-        }
-        try OSLogger.instance.log(name: "Write breakpoints", path.string) {
-            try writeBreakPoints(path: path, override: override)
-        }
+        try writeWorkspace(path: path, override: override)
+        try writePBXProj(path: path, override: override, outputSettings: outputSettings)
+        try writeSchemes(path: path, override: override)
+        try writeBreakPoints(path: path, override: override)
     }
 
     /// Returns workspace file path relative to the given path.
@@ -175,7 +186,7 @@ extension XcodeProj: Writable {
         guard let sharedData = sharedData else { return }
 
         let schemesPath = XcodeProj.schemesPath(path)
-        if override && schemesPath.exists {
+        if override, schemesPath.exists {
             try schemesPath.delete()
         }
         try schemesPath.mkpath()
@@ -212,7 +223,7 @@ extension XcodeProj: Writable {
         guard let sharedData = sharedData else { return }
 
         let debuggerPath = XcodeProj.debuggerPath(path)
-        if override && debuggerPath.exists {
+        if override, debuggerPath.exists {
             try debuggerPath.delete()
         }
         try debuggerPath.mkpath()

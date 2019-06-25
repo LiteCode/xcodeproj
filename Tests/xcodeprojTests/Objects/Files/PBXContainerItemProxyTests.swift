@@ -1,6 +1,6 @@
 import Foundation
-@testable import xcodeproj
 import XCTest
+@testable import XcodeProj
 
 final class PBXContainerItemProxyTests: XCTestCase {
     func test_itHasTheCorrectIsa() {
@@ -16,6 +16,14 @@ final class PBXContainerItemProxyTests: XCTestCase {
             _ = try decoder.decode(PBXContainerItemProxy.self, from: data)
             XCTAssertTrue(false, "Expected to throw an error but it didn't")
         } catch {}
+    }
+
+    func test_maintains_remoteID() {
+        let target = PBXNativeTarget(name: "")
+        let project = PBXProject(name: "", buildConfigurationList: XCConfigurationList(), compatibilityVersion: "", mainGroup: PBXGroup())
+        let containerProxy = PBXContainerItemProxy(containerPortal: .project(project), remoteGlobalID: .object(target))
+
+        XCTAssertEqual(target.uuid, containerProxy.remoteGlobalID?.uuid)
     }
 
     private func testDictionary() -> [String: Any] {
